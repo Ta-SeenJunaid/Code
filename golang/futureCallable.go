@@ -25,3 +25,36 @@ type Future struct {
 	result        interface{}
 	err           error
 }
+
+func (f *Future) Wait() {
+	<-f.wait
+}
+
+func (f *Future) Result() (interface{}, error) {
+	<-f.wait
+
+	return f.result, f.err
+}
+
+func (f *Future) run() {
+	defer close(f.wait)
+
+	numParams := f.functionType.NumIn()
+	values := make([]reflect.Value, numParams)
+	for i := 0; i < numParams; i++ {
+		values[i] = reflect.ValueOf(f.args[i])
+	}
+
+	ret := f.functionValue.Call(values)
+
+	if len(ret) == 0 {
+		return
+	}
+
+	f.result = ret[0].Interface()
+
+	if f.functionType.NumOut() > 1 && !ret[1].IsNil() {
+		// nolint
+		f.err = ret[1].Interface().(error)
+	}
+}
